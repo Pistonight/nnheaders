@@ -1,5 +1,8 @@
 # Migration Guide for nnSdk/nnWare split
 
+**Please do not create new PRs here during the migration.**
+The new repos are already in good shape, so please direct future contributions there.
+
 Timeline: Please see the end of the document for a detailed description
 for each phase.
 
@@ -235,7 +238,7 @@ Each ported PR will retain the current commits by the PR author at the time of p
 a port commit will be authored on top, followed by a merge commit into the `main` branch.
 
 **Please do not create new PRs here during the migration.**
-The new repos are already in good shape, so please direct future contributions there,
+The new repos are already in good shape, so please direct future contributions there.
 
 ### Phase 2: Compatibility gate of `open-ead` libraries: `sead` and `NintendoSDK-NEX`
 
