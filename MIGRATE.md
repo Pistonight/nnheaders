@@ -1,15 +1,20 @@
 # Migration Guide for nnSdk/nnWare split
 
-Timeline:
+Timeline: Please see the end of the document for a detailed description
+for each phase.
+
 | What | When |
 | ---- | ---- |
-| Port current `nnsdk` files | ETA 2026-09-23 |
-| Port current `nnware` files | ETA 2026-09-23 |
-| Port all `nnheaders` PRs | ETA 2026-09-24 |
-| `sead` compatibility update | Before 2026-10 |
-| other repos compatibility update | Before 2027 |
-| Downstream projects update | Before 2027 |
-| Archive this repo | Before 2027 |
+| Phase 1: Port current `nnsdk` files | ✅ Done |
+| Phase 1: Port current `nnware` files | ✅ Done |
+| Phase 1.5 Port `nnheaders` PRs | ETA 2026-09-28 |
+| Phase 2: `sead` compatibility gate (default on) | 2026-11 |
+| Phase 2: `NintendoSDK-NEX` compatibility gate (default on) | 2026-11 |
+| Phase 3: BOTW update | Before 2027 |
+| Phase 3: SMO update | Before 2027 |
+| Phase 3: `sead` gate default off | Before 2027 |
+| Phase 3: `NintendoSDK-NEX` gate default off | Before 2027 |
+| Phase 4: Migration complete | Before 2027 |
 
 ## What
 We have decided to split this repo into 2 and detached it as a fork
@@ -56,7 +61,7 @@ The single `NintendoSDK` CMake target library is now split into multiple librari
 
 ### Header Reorganization
 
-The current headers don't follow consistent nameing convention and placement. With the migration,
+The current headers don't follow consistent naming convention and placement. With the migration,
 we also want to take the opportunity to fix that.
 
 Notable changes:
@@ -107,7 +112,7 @@ Notable changes:
       ```
       Review the diff afterwards, since the regex also matches names in comments and strings,
       and drop the `nn/nn_Result.h` include from files that don't use `nn::Result`.
-    - Use the same aliases from another library, for example `<prim/seadTypes.h>` from `sead`
+    - Use the same aliases from another library, for example `<basis/seadTypes.h>` from `sead`
     - Create your own types header.
 
 ### Other Improvements
@@ -137,6 +142,7 @@ magoo install https://github.com/open-ead/nnsdk lib/nnsdk --name nnsdk --branch 
 magoo install https://github.com/open-ead/nnware lib/nnware --name nnware --branch main
 
 # commit the new submodule
+git add .
 git commit -m "add new nnsdk and nnware"
 ```
 
@@ -148,14 +154,16 @@ target_link_libraries(my_project PRIVATE NintendoSDK)
 
 # new:
 add_subdirectory(lib/nnsdk)
+add_subdirectory(lib/nnware)
 
-# you only need to link what you need, the example shows all 3 libraries
-target_link_libraries(my_project PRIVATE nnSdk nn_gfx nvn)
+# you only need to link what you need, the example shows everything
+target_link_libraries(my_project PRIVATE nnSdk nn_gfx nvn) # nnsdk targets
+target_link_libraries(my_project PRIVATE nn_atk nn_font nn_g3d nn_ui2d nn_vfx) # nnware targets
 ```
 
 Re-run CMake and clean-build your project to make sure everything builds fine, then, remove the old
 repo (assuming it's at `lib/NintendoSDK`):
-```
+```bash
 # with git
 git submodule deinit -f lib/NintendoSDK
 git rm -f lib/NintendoSDK
@@ -165,7 +173,7 @@ rm -rf .git/modules/lib/NintendoSDK
 magoo remove lib/NintendoSDK
 
 # commit the removal
-git add .gitsubmodule
+git add .
 git commit -m "removed old NintendoSDK"
 ```
 
@@ -201,37 +209,90 @@ open-ead/nnware/
 └── CMakeLists.txt
 ```
 
-## Compatibility Patches to other `open-ead` repos
+## Timeline and Phases
 
-Before the migration is done, repos that depend on `nnheaders`, such as `sead`
-will get a compatibility patch to work with the new repo, which includes:
-- A CMake variable like `SEAD_USE_OLD_NNHEADERS_REPO`, which assumes
-  you use the old `NintendoSDK` target. It will export the `ifdef` macros
-  to use the old paths in the code.
-- An ifdef macro of the same name `SEAD_USE_OLD_NNHEADERS_REPO` to
-  conditionally choose the new or old includes.
+We aim to make the migration process as streamlined as possible
+and give downstream projects plenty of time to migrate, with the goal
+of archiving and discontinuing this repository.
 
-You can receive updates from these repo while stilling using the `nnheaders`
-repo by defining the `XXX_USE_OLD_NNHEADERS_REPO` variable or the macro
-with the same name, example:
-```bash
-cmake -B build -S . -DSEAD_USE_OLD_NNHEADERS_REPO
-```
-Or directly in CMakeLists:
-```cmake
-set(SEAD_USE_OLD_NNHEADERS_REPO)
-```
+### Phase 1: New repository creation (Done)
 
-Note this is only a temporary escape hatch during the migration. These
-options will be removed in the future, at which point you have to migrate
-to the new repos to use newer revisions of those libraries.
+New repositories are created with the new architecture described above:
+- [`open-ead/nnsdk`](https://github.com/open-ead/nnsdk)
+- [`open-ead/nnware`](https://github.com/open-ead/nnware)
 
-## Current Open PRs
+No action is required for downstream projects during this time,
+`nnheaders`, `sead`, and `NintendoSDK-NEX` remain the same as-is.
 
-All Current PRs, including the WIP ones, will be ported and merged to the new repos.
-During the initial phase of the migration, please do not create new PRs. 
-You can create the PRs to the new repos once they are stood up, which should
-only take a few days. Check the timeline at the top.
+After this phase, the new repos will start accepting PRs.
 
-Each PR will retain the current commits by the PR author at the time of porting,
+### Phase 1.5: Port of open PRs (In progress)
+
+Existing PRs on this repo will be analyzed and ported on individual basis.
+PRs that are not going to be ported are tagged `port:not-planned`.
+
+Each ported PR will retain the current commits by the PR author at the time of porting,
 a port commit will be authored on top, followed by a merge commit into the `main` branch.
+
+**Please do not create new PRs here during the migration.**
+The new repos are already in good shape, so please direct future contributions there,
+
+### Phase 2: Compatibility gate of `open-ead` libraries: `sead` and `NintendoSDK-NEX`
+
+`sead` and `NintendoSDK-NEX` are the only 2 repos that currently have a dependency
+on the SDK. If your project uses either of these libraries, it's likely that you
+also already have a dependency on the SDK.
+
+During this phase, these libraries will introduce compatibility gates: `SEAD_USE_OLD_NNHEADERS_REPO`
+and `NEX_USE_OLD_NNHEADERS_REPO`. These are CMake options and in-source macros
+that gate changes required in the headers and sources to work with the new repos.
+
+These options will be default to `ON` at this phase, so projects can continue to update to newer
+versions of these libraries without any change to their setup. However it is recommended
+that you try enabling these settings and start migrating to the new repos at this time,
+so you can report any issues to us.
+
+To enable the option, put something like this in your `CMakeLists.txt`:
+```cmake
+option(SEAD_USE_OLD_NNHEADERS_REPO OFF CACHE BOOL "Enable new nnsdk repo")
+option(NEX_USE_OLD_NNHEADERS_REPO OFF CACHE BOOL "Enable new nnsdk repo")
+```
+Or define them in `cmake` command line invocation:
+```bash
+cmake -B build -DSEAD_USE_OLD_NNHEADERS_REPO=OFF -DNEX_USE_OLD_NNHEADERS_REPO=OFF ...
+```
+
+### Phase 3: Turning the compatibility off by default
+
+Once *Breath of the Wild* and *Super Mario Odyssey* enables these settings and confirm the new repos
+are working, the compatibility gates will be changed to `OFF` by default.
+
+If you upgrade `sead` or `NintendoSDK-NEX` without migrating to the new repo, you will get a loud error
+in CMake, like:
+```
+Could not find NintendoSDK! Make sure you add open-ead/nnsdk to your project
+and put `add_subdirectory(path/to/nnsdk)` somewhere in your CMakeLists.txt.
+Alternatively, set SEAD_USE_OLD_NNHEADERS_REPO=ON in your project to continue
+use the old nnheaders repo as a temporary unblock until you migrate.
+```
+
+At this time, you should migrate your projects to the new repos because the old repo will soon
+be discontinued. But `-DSEAD_USE_OLD_NNHEADERS_REPO=ON` is the escape hatch if you still have
+to use the old repo.
+
+### Phase 4: Discontinue and archive `nnheaders`
+
+At this phase, this repo will be archived and discontinued.
+
+The compatibility options from `sead` and `NintendoSDK-NEX` will also be removed.
+You must migrate your project at this point to continue using newer revisions of `sead` and `NintendoSDK-NEX`.
+
+After archival, CMake will throw an error by default for this repo unless you set
+`USE_OLD_NNHEADERS_REPO=ON`. Treat this as an explicit request for existing and new projects
+to use the new repos. You can set this option as an escape hatch if for some reason you must
+continue to use this repo.
+
+
+
+
+
