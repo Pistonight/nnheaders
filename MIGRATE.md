@@ -10,7 +10,7 @@ for each phase.
 | ---- | ---- |
 | Phase 1: Port current `nnsdk` files | ✅ Done |
 | Phase 1: Port current `nnware` files | ✅ Done |
-| Phase 1.5 Port `nnheaders` PRs | ETA 2026-09-28 |
+| Phase 1.5 Port `nnheaders` PRs | 2026-10 |
 | Phase 2: `sead` compatibility gate (default on) | 2026-11 |
 | Phase 2: `NintendoSDK-NEX` compatibility gate (default on) | 2026-11 |
 | Phase 3: BOTW update | Before 2027 |
@@ -61,6 +61,20 @@ The single `NintendoSDK` CMake target library is now split into multiple librari
 | NintendoWare: g3d | `open-ead/nnware` | `nn_g3d` |
 | NintendoWare: ui2d | `open-ead/nnware` | `nn_ui2d` |
 | NintendoWare: vfx | `open-ead/nnware` | `nn_vfx` |
+
+Additionally, with the exception of `nnSdk` which is an INTERFACE target (header-only),
+the other targets will be changed from OBJECT to STATIC. The difference is that
+an OBJECT target produces a bunch of `.o` objects, while a STATIC target zips
+those objects into an `.a` archive (known as a static library, or staticlib).
+
+Additionally:
+- Linking a STATIC library automatically links objects of its dependencies, so if your
+  project depends on a library `A`, which depends on objects from another library `B`.
+  If `A` is OBJECT, you also have to manually link `B` in your project, but if `A` is STATIC,
+  CMake automatically adds objects from `B`.
+- Sources suggest that this is what Nintendo did
+
+**This might require a slightly more complex change to downstream matching decompilation projects. See "How to migrate?" below.**
 
 ### Header Reorganization
 
@@ -164,8 +178,60 @@ target_link_libraries(my_project PRIVATE nnSdk nn_gfx nvn) # nnsdk targets
 target_link_libraries(my_project PRIVATE nn_atk nn_font nn_g3d nn_ui2d nn_vfx) # nnware targets
 ```
 
-Re-run CMake and clean-build your project to make sure everything builds fine, then, remove the old
-repo (assuming it's at `lib/NintendoSDK`):
+Now you can re-run CMake and clean-build your project to make sure everything builds fine.
+
+> [!NOTE]
+>
+> For matching decompilation projects, it's possible that after doing the changes
+> above, you will find some functions are now missing from the final binary, this is because
+> when linking a static library (`.a`), only objects in the library that contain a symbol 
+> that is currently undefined are linked, whereas `.o` files are always linked.
+>
+> To fix this, we need to tell the linker to always link everything in the archive,
+> with the `--whole-archive` ld flag. In CMake, specify the `WHOLE_ARCHIVE` feature
+> in the link step:
+> ```cmake
+> add_subdirectory(lib/nnsdk)
+> # target_link_libraries(uking PUBLIC nn_gfx) # <- old, does not link whole archive
+> target_link_libraries(uking PUBLIC $<LINK_LIBRARY:WHOLE_ARCHIVE,nn_gfx>)
+> ```
+>
+> If CMake now gives an error saying `WHOLE_ARCHIVE` is not supported,
+> it's because it does not know how to interpret WHOLE_ARCHIVE for your `CMAKE_SYSTEM_NAME`.
+>
+> You have 2 options:
+> 1. Change `CMAKE_SYSTEM_NAME` to `Linux`
+> 2. Specify a custom feature, note it has to be lowercase because uppercase is reserved.
+>    Put the block below in your CMakeLists.txt, or any file it includes (such as a Toolchain file).
+>    This requires CMake >=3.30
+> ```cmake
+> # CMake only provides the WHOLE_ARCHIVE link feature for known platforms, not Generic.
+> # Usage: target_link_libraries(target PRIVATE "$<LINK_LIBRARY:whole_archive,the_lib>")
+> #    or: set_property(TARGET target PROPERTY LINK_LIBRARY_OVERRIDE_the_lib whole_archive)
+> set(CMAKE_CXX_LINK_LIBRARY_USING_whole_archive
+>     "LINKER:--whole-archive" "<LINK_ITEM>" "LINKER:--no-whole-archive")
+> set(CMAKE_CXX_LINK_LIBRARY_USING_whole_archive_SUPPORTED TRUE)
+> # Allow mixing with links of the same library without a feature (requires CMake 3.30)
+> # This is important because some dependencies in the middle can link a library
+> # without whole_archive, for example your_project -links-> nn_g3d -links-> nn_gfx
+> set(CMAKE_LINK_LIBRARY_whole_archive_ATTRIBUTES
+>    LIBRARY_TYPE=STATIC DEDUPLICATION=YES OVERRIDE=DEFAULT)
+> ```
+>
+> and now this should work: (note the lowercase `whole_archive`)
+>
+> ```cmake
+> add_subdirectory(lib/nnsdk)
+> # target_link_libraries(uking PUBLIC nn_gfx) # <- old, does not link whole archive
+> target_link_libraries(uking PUBLIC $<LINK_LIBRARY:whole_archive,nn_gfx>)
+> ```
+>
+> This change might be temporary if the objects are missing because you haven't
+> decompiled anything that references them. You can try removing this in the future
+> as the project progresses.
+>
+
+Finally, remove the old repo (assuming it's at `lib/NintendoSDK`):
 ```bash
 # with git
 git submodule deinit -f lib/NintendoSDK
@@ -276,7 +342,7 @@ in CMake, like:
 Could not find NintendoSDK! Make sure you add open-ead/nnsdk to your project
 and put `add_subdirectory(path/to/nnsdk)` somewhere in your CMakeLists.txt.
 Alternatively, set SEAD_USE_OLD_NNHEADERS_REPO=ON in your project to continue
-use the old nnheaders repo as a temporary unblock until you migrate.
+using the old nnheaders repo as a temporary unblock until you migrate.
 ```
 
 At this time, you should migrate your projects to the new repos because the old repo will soon
