@@ -67,12 +67,12 @@ the other targets will be changed from OBJECT to STATIC. The difference is that
 an OBJECT target produces a bunch of `.o` objects, while a STATIC target zips
 those objects into an `.a` archive (known as a static library, or staticlib).
 
-Additionally:
-- Linking a STATIC library automatically links objects of its dependencies, so if your
+We made this decision because:
+- Linking a STATIC library automatically links objects of its dependencies. So, say your
   project depends on a library `A`, which depends on objects from another library `B`.
   If `A` is OBJECT, you also have to manually link `B` in your project, but if `A` is STATIC,
   CMake automatically adds objects from `B`.
-- Sources suggest that this is what Nintendo did
+- Sources suggest that this is what Nintendo did.
 
 **This might require a slightly more complex change to downstream matching decompilation projects. See "How to migrate?" below.**
 
